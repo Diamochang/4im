@@ -1,0 +1,19 @@
+{
+    "name": "diamochang/4im",
+    "description": "4im = 4chan IMproved. A secure, customizable and internationalized alternative of 4chan.",
+    "keywords": ["php","4im","4chan","imageboard"],
+    "homepage": "https://github.com/Diamochang/4im",
+    "type": "project",
+    "license": "GPL-3.0+",
+    "authors": [
+        {
+            "name": "Diamochang (Mike Wang)",
+            "email": "diamochang@yeah.net",
+            "homepage": "https://imdchs.rf.gd",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/Diamochang/4im/issues"
+    }
+}
