@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="5190"
+   height="1700"
+   viewBox="0 0 1373.1875 449.79166"
+   version="1.1"
+   id="svg1"
+   inkscape:version="1.4.2 (2aeb623e1d, 2025-05-12)"
+   sodipodi:docname="4imlogo.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <title
+     id="title4">4im LOGO</title>
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     inkscape:zoom="0.23072917"
+     inkscape:cx="2643.7923"
+     inkscape:cy="1081.3544"
+     inkscape:window-width="1854"
+     inkscape:window-height="1011"
+     inkscape:window-x="66"
+     inkscape:window-y="32"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="text1"
+       style="font-size:617.361px;font-family:Draxel;-inkscape-font-specification:Draxel;stroke-width:0.264583"
+       aria-label="[4IM]">
+      <path
+         style="fill:#4c9a34"
+         d="m 145.52083,32.279281 v 64.509404 64.509405 65.11229 64.50941 64.5094 64.50941 h 65.1123 64.5094 v -64.50941 h -64.5094 v -64.5094 -64.50941 -65.11229 -64.509405 h 64.5094 V 32.279281 h -64.5094 z"
+         id="path4" />
+      <path
+         style="fill:#0d6f09"
+         d="m 457.81869,32.279281 v 64.509404 h -43.4082 v 64.509405 h -32.55614 v 65.11229 h -31.95326 v 64.50941 h -32.55615 v 64.5094 h 64.50941 64.5094 32.55615 v 64.50941 h 64.5094 v -64.50941 h 64.50941 v -64.5094 H 543.4293 V 226.41038 161.29809 96.788685 32.279281 H 522.93099 Z M 446.36375,161.29809 h 32.55615 v 65.11229 64.50941 h -32.55615 -31.95326 v -64.50941 h 31.95326 z M 644.11222,32.279281 v 64.509404 h 64.5094 V 32.279281 Z m 0,64.509404 v 64.509405 65.11229 64.50941 64.5094 64.50941 h 64.5094 V 355.42919 290.91979 226.41038 161.29809 96.788685 Z M 744.79514,32.279281 v 64.509404 64.509405 65.11229 64.50941 64.5094 64.50941 h 65.11229 v -64.50941 -64.5094 -64.50941 -65.11229 h 31.95326 v 65.11229 h 32.55615 v 64.50941 h 64.5094 v -64.50941 h 32.55615 v -65.11229 h 31.95321 v 65.11229 64.50941 64.5094 64.50941 h 64.5094 V 355.42919 290.91979 226.41038 161.29809 96.788685 32.279281 h -64.5094 V 96.788685 H 938.92624 V 161.29809 H 906.37009 874.41684 V 96.788685 H 809.90743 V 32.279281 Z"
+         id="path5" />
+      <path
+         style="fill:#4c9a34"
+         d="m 1239.1662,32.279281 v 64.509404 64.509405 65.11229 64.50941 64.5094 64.50941 h -64.5094 -64.5094 v -64.50941 h 64.5094 v -64.5094 -64.50941 -65.11229 -64.509405 h -64.5094 V 32.279281 h 64.5094 z"
+         id="path6" />
+    </g>
+  </g>
+  <metadata
+     id="metadata4">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>4im LOGO</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>Diamochang (Mike Wang)</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <cc:license
+           rdf:resource="http://creativecommons.org/licenses/by-sa/4.0/" />
+      </cc:Work>
+      <cc:License
+         rdf:about="http://creativecommons.org/licenses/by-sa/4.0/">
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Reproduction" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#Distribution" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Notice" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#Attribution" />
+        <cc:permits
+           rdf:resource="http://creativecommons.org/ns#DerivativeWorks" />
+        <cc:requires
+           rdf:resource="http://creativecommons.org/ns#ShareAlike" />
+      </cc:License>
+    </rdf:RDF>
+  </metadata>
+</svg>
