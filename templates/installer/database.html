@@ -1,0 +1,42 @@
+<div class="installer-database">
+    <h2>{% trans %}Database Installation{% endtrans %}</h2>
+    
+    {% if error is defined %}
+        <div class="installer-errors">
+            <h3>{% trans %}Error{% endtrans %}</h3>
+            <p>{{ error }}</p>
+            <p class="text-center">
+                <a href="?step=4">{% trans %}Try again{% endtrans %}</a>
+            </p>
+        </div>
+    {% elseif success is defined %}
+        <div class="installer-success">
+            <h3>{% trans %}Installation Complete{% endtrans %}</h3>
+            <p>{% trans %}Thank you for using 4im. Please remember to report any bugs you discover.{% endtrans %}</p>
+            
+            {% if sql_errors is defined and sql_errors %}
+                <div class="installer-warnings">
+                    <h4>{% trans %}SQL errors{% endtrans %}</h4>
+                    <p>{% trans %}SQL errors were encountered when trying to install the database. This may be the result of using a database which is already occupied with a 4im installation; if so, you can probably ignore this.{% endtrans %}</p>
+                    <p>{% trans %}The errors encountered were:{% endtrans %}</p>
+                    <ul>
+                        {% for error in sql_errors %}
+                            <li>{{ error|raw }}</li>
+                        {% endfor %}
+                    </ul>
+                    <p class="text-center">
+                        <a href="?step=5">{% trans %}Ignore errors and complete installation.{% endtrans %}</a>
+                    </p>
+                </div>
+            {% else %}
+                <p class="text-center">
+                    <a href="{{ config.root }}mod.php">{% trans %}Continue to your new installation{% endtrans %}</a>
+                </p>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="installer-progress">
+            <p class="text-center">{% trans %}Installing database...{% endtrans %}</p>
+        </div>
+    {% endif %}
+</div>

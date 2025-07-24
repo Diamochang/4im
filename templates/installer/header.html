@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>{% if title is defined %}{{ title }}{% else %}4im Installation{% endif %}</title>
+    <link rel="stylesheet" href="{{ config.root }}stylesheets.css?v={{ config.resource_version }}">
+    <link rel="stylesheet" href="{{ config.root }}stylesheets/installer.css?v={{ config.resource_version }}">
+    {% if config.font_awesome %}
+    <link rel="stylesheet" href="{{ config.root }}{{ config.font_awesome_css }}?v={{ config.resource_version }}">
+    {% endif %}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://polyfill.alicdn.com/v3/polyfill.min.js?features=es6,Intl"></script>
+</head>
+<body class="installer">
+    <header class="installer-header">
+        <div class="header-content">
+            <div class="logo">
+                <img src="{{ config.root }}static/logo.svg" alt="4im Logo" width="120" height="40">
+            </div>
+            <h1>4im Installation</h1>
+        </div>
+        {% if step is defined %}
+        <nav class="installer-nav">
+            <ul>
+                <li class="{% if step == 0 %}active{% endif %}">{% trans %}License{% endtrans %}</li>
+                <li class="{% if step == 1 %}active{% endif %}">{% trans %}Requirements{% endtrans %}</li>
+                <li class="{% if step == 2 %}active{% endif %}">{% trans %}Configuration{% endtrans %}</li>
+                <li class="{% if step == 3 %}active{% endif %}">{% trans %}Database{% endtrans %}</li>
+                <li class="{% if step >= 4 %}active{% endif %}">{% trans %}Finish{% endtrans %}</li>
+            </ul>
+        </nav>
+        {% endif %}
+    </header>
+    <main class="installer-main">

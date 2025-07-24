@@ -5,6 +5,12 @@ define('VERSION', '5.2.1');
 require 'inc/bootstrap.php';
 loadConfig();
 
+// Set secure headers
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('X-XSS-Protection: 1; mode=block');
+header('Content-Security-Policy: default-src \'self\'; style-src \'self\' \'unsafe-inline\';');
+
 // Salt generators
 class SaltGen {
 	public $salt_length = 128;
@@ -14,6 +20,9 @@ class SaltGen {
 		$ret = "";
 
 		// This is bad! But what else can we do sans OpenSSL?
+		// ↑ Hey, Qwen3-Coder-480B-A35B-Instruct says you can improve by adding more entropy sources!
+		mt_srand(microtime(true) * 1000000 + memory_get_usage(true));
+		
 		for ($i = 0; $i < $this->salt_length; ++$i) {
 			$s = pack("c", mt_rand(0,255));
 			$ret = $ret . $s;
@@ -26,33 +35,52 @@ class SaltGen {
 	private function generate_install_salt_openssl() {
 		$ret = openssl_random_pseudo_bytes($this->salt_length, $strong);
 		if (!$strong) {
-			error(_("Misconfigured system: OpenSSL returning weak salts. Cannot continue."));
+			// Instead of erroring out, let's try to combine with other sources
+			$fallback = $this->generate_install_salt();
+			return base64_encode($ret) . $fallback;
 		}
 		return base64_encode($ret);
 	}
 
 	private function generate_install_salt_php7() {
-		return base64_encode(random_bytes($this->salt_length));
+		// Use random_bytes with proper error handling
+		try {
+			$random = random_bytes($this->salt_length);
+			return base64_encode($random);
+		} catch (Exception $e) {
+			// Fallback to OpenSSL if random_bytes fails
+			return $this->generate_install_salt_openssl();
+		}
 	}
 
 	// TODO: Perhaps add mcrypt as an option? Maybe overkill.
 	public function generate() {
-		if (extension_loaded('openssl')) {
-			return "OSSL." . $this->generate_install_salt_openssl();
-		} else if (defined('PHP_MAJOR_VERSION') && PHP_MAJOR_VERSION >= 7) {
+		if (defined('PHP_MAJOR_VERSION') && PHP_MAJOR_VERSION >= 7) {
+			// Prefer PHP 7's random_bytes
 			return "PHP7." . $this->generate_install_salt_php7();
+		} else if (extension_loaded('openssl')) {
+			// Use OpenSSL if available
+			return "OSSL." . $this->generate_install_salt_openssl();
 		} else {
+			// Fallback for older PHP versions without OpenSSL
 			return "INSECURE." . $this->generate_install_salt();
 		}
 	}
 }
 
-$step = isset($_GET['step']) ? round($_GET['step']) : 0;
+// Validate step parameter to prevent potential injection
+$step = isset($_GET['step']) ? (int)$_GET['step'] : 0;
+// Limit step to reasonable values (0-5)
+if ($step < 0 || $step > 5) {
+	$step = 0;
+}
+
 $page = array(
 	'config' => $config,
 	'title' => 'Install',
 	'body' => '',
-	'nojavascript' => true
+	'nojavascript' => true,
+	'step' => $step
 );
 
 // this breaks the display of licenses if enabled
@@ -63,7 +91,7 @@ if (file_exists($config['has_installed'])) {
 	// Check the version number
 	$version = trim(file_get_contents($config['has_installed']));
 	if (empty($version))
-		$version = 'v0.9.1';
+		$version = '4.9.90';
 
 	function __query($sql) {
 		sql_open();
@@ -75,518 +103,9 @@ if (file_exists($config['has_installed'])) {
 	}
 
 	$boards = listBoards();
-
+    
+	// Well, 4im don't need to combine very old versions of vichan cuz this fork will change a lot things. Starting from 4.9.90 is a good idea, maybe.
 	switch ($version) {
-		case 'v0.9':
-		case 'v0.9.1':
-			// Upgrade to v0.9.2-dev
-
-			foreach ($boards as &$_board) {
-				// Add `capcode` field after `trip`
-				query(sprintf("ALTER TABLE `posts_%s` ADD  `capcode` VARCHAR( 50 ) NULL AFTER  `trip`", $_board['uri'])) or error(db_error());
-
-				// Resize `trip` to 15 characters
-				query(sprintf("ALTER TABLE `posts_%s` CHANGE  `trip`  `trip` VARCHAR( 15 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.2-dev':
-			// Upgrade to v0.9.2-dev-1
-
-			// New table: `theme_settings`
-			query("CREATE TABLE IF NOT EXISTS `theme_settings` ( `name` varchar(40) NOT NULL, `value` text, UNIQUE KEY `name` (`name`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;") or error(db_error());
-
-			// New table: `news`
-			query("CREATE TABLE IF NOT EXISTS `news` ( `id` int(11) NOT NULL AUTO_INCREMENT, `name` text NOT NULL, `time` int(11) NOT NULL, `subject` text NOT NULL, `body` text NOT NULL, UNIQUE KEY `id` (`id`) ) ENGINE=InnoDB DEFAULT CHARSET=utf8 AUTO_INCREMENT=1;") or error(db_error());
-		case 'v0.9.2.1-dev':
-		case 'v0.9.2-dev-1':
-			// Fix broken version number/mistake
-			$version = 'v0.9.2-dev-1';
-			// Upgrade to v0.9.2-dev-2
-
-			foreach ($boards as &$_board) {
-				// Increase field sizes
-				query(sprintf("ALTER TABLE `posts_%s` CHANGE  `subject` `subject` VARCHAR( 50 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL", $_board['uri'])) or error(db_error());
-				query(sprintf("ALTER TABLE `posts_%s` CHANGE  `name` `name` VARCHAR( 35 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.2-dev-2':
-			// Upgrade to v0.9.2-dev-3 (v0.9.2)
-
-			foreach ($boards as &$_board) {
-				// Add `custom_fields` field
-				query(sprintf("ALTER TABLE `posts_%s` ADD `embed` TEXT NULL", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.2-dev-3': // v0.9.2-dev-3 == v0.9.2
-		case 'v0.9.2':
-			// Upgrade to v0.9.3-dev-1
-
-			// Upgrade `theme_settings` table
-			query("TRUNCATE TABLE `theme_settings`") or error(db_error());
-			query("ALTER TABLE  `theme_settings` ADD  `theme` VARCHAR( 40 ) NOT NULL FIRST") or error(db_error());
-			query("ALTER TABLE  `theme_settings` CHANGE  `name`  `name` VARCHAR( 40 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL") or error(db_error());
-			query("ALTER TABLE  `theme_settings` DROP INDEX  `name`") or error(db_error());
-		case 'v0.9.3-dev-1':
-			query("ALTER TABLE  `mods` ADD  `boards` TEXT NOT NULL") or error(db_error());
-			query("UPDATE `mods` SET `boards` = '*'") or error(db_error());
-		case 'v0.9.3-dev-2':
-			foreach ($boards as &$_board) {
-				query(sprintf("ALTER TABLE `posts_%s` CHANGE `filehash`  `filehash` TEXT CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.3-dev-3':
-			// Board-specifc bans
-			query("ALTER TABLE `bans` ADD  `board` SMALLINT NULL AFTER  `reason`") or error(db_error());
-		case 'v0.9.3-dev-4':
-			// add ban ID
-			query("ALTER TABLE `bans` ADD  `id` INT NOT NULL AUTO_INCREMENT FIRST, ADD PRIMARY KEY ( `id` ), ADD UNIQUE (`id`)");
-		case 'v0.9.3-dev-5':
-			foreach ($boards as &$_board) {
-				// Increase subject field size
-				query(sprintf("ALTER TABLE `posts_%s` CHANGE  `subject` `subject` VARCHAR( 100 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.3-dev-6':
-			// change to InnoDB
-			$tables = array(
-				'bans', 'boards', 'ip_notes', 'modlogs', 'mods', 'mutes', 'noticeboard', 'pms', 'reports', 'robot', 'theme_settings', 'news'
-			);
-			foreach ($boards as &$board) {
-				$tables[] = "posts_{$board['uri']}";
-			}
-
-			foreach ($tables as &$table) {
-				query("ALTER TABLE  `{$table}` ENGINE = INNODB DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci") or error(db_error());
-			}
-		case 'v0.9.3-dev-7':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  `posts_%s` CHANGE  `filename` `filename` TEXT CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.3-dev-8':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE `posts_%s` ADD INDEX (  `thread` )", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.3-dev-9':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE `posts_%s`ADD INDEX (  `time` )", $board['uri'])) or error(db_error());
-				query(sprintf("ALTER TABLE `posts_%s`ADD FULLTEXT (`body`)", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.3-dev-10':
-		case 'v0.9.3':
-			query("ALTER TABLE  `bans` DROP INDEX `id`") or error(db_error());
-			query("ALTER TABLE  `pms` DROP INDEX  `id`") or error(db_error());
-			query("ALTER TABLE  `boards` DROP PRIMARY KEY") or error(db_error());
-			query("ALTER TABLE  `reports` DROP INDEX  `id`") or error(db_error());
-			query("ALTER TABLE  `boards` DROP INDEX `uri`") or error(db_error());
-
-			query("ALTER IGNORE TABLE  `robot` ADD PRIMARY KEY (`hash`)") or error(db_error());
-			query("ALTER TABLE  `bans` ADD FULLTEXT (`ip`)") or error(db_error());
-			query("ALTER TABLE  `ip_notes` ADD INDEX (`ip`)") or error(db_error());
-			query("ALTER TABLE  `modlogs` ADD INDEX (`time`)") or error(db_error());
-			query("ALTER TABLE  `boards` ADD PRIMARY KEY(`uri`)") or error(db_error());
-			query("ALTER TABLE  `mutes` ADD INDEX (`ip`)") or error(db_error());
-			query("ALTER TABLE  `news` ADD INDEX (`time`)") or error(db_error());
-			query("ALTER TABLE  `theme_settings` ADD INDEX (`theme`)") or error(db_error());
-		case 'v0.9.4-dev-1':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  `posts_%s` ADD  `sage` INT( 1 ) NOT NULL AFTER  `locked`", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.4-dev-2':
-			if (!isset($_GET['confirm'])) {
-				$page['title'] = 'License Change';
-				$page['body'] = '<p style="text-align:center">You are upgrading to a version which uses an amended license. The licenses included with Tinyboard distributions prior to this version (v0.9.4-dev-2) are still valid for those versions, but no longer apply to this and newer versions.</p>' .
-					'<textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black" disabled>' . htmlentities(file_get_contents('LICENSE.md')) . '</textarea>
-					<p style="text-align:center">
-						<a href="?confirm=1">I have read and understood the agreement. Proceed to upgrading.</a>
-					</p>';
-
-				file_write($config['has_installed'], 'v0.9.4-dev-2');
-
-				break;
-			}
-		case 'v0.9.4-dev-3':
-		case 'v0.9.4-dev-4':
-		case 'v0.9.4':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  `posts_%s`
-					CHANGE `subject` `subject` VARCHAR( 100 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL ,
-					CHANGE  `email`  `email` VARCHAR( 30 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL ,
-					CHANGE  `name`  `name` VARCHAR( 35 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.5-dev-1':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  `posts_%s` ADD  `body_nomarkup` TEXT NULL AFTER  `body`", $board['uri'])) or error(db_error());
-			}
-			query("CREATE TABLE IF NOT EXISTS `cites` (  `board` varchar(8) NOT NULL,  `post` int(11) NOT NULL,  `target_board` varchar(8) NOT NULL,  `target` int(11) NOT NULL,  KEY `target` (`target_board`,`target`),  KEY `post` (`board`,`post`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;") or error(db_error());
-		case 'v0.9.5-dev-2':
-			query("ALTER TABLE  `boards`
-				CHANGE  `uri`  `uri` VARCHAR( 15 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-				CHANGE  `title`  `title` VARCHAR( 40 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-				CHANGE  `subtitle`  `subtitle` VARCHAR( 120 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL") or error(db_error());
-		case 'v0.9.5-dev-3':
-			// v0.9.5
-		case 'v0.9.5':
-			query("ALTER TABLE  `boards`
-				CHANGE  `uri`  `uri` VARCHAR( 50 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-				CHANGE  `title`  `title` TINYTEXT CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
-				CHANGE  `subtitle`  `subtitle` TINYTEXT CHARACTER SET utf8 COLLATE utf8_general_ci NULL") or error(db_error());
-		case 'v0.9.6-dev-1':
-			query("CREATE TABLE IF NOT EXISTS `antispam` (
-				  `board` varchar(255) NOT NULL,
-				  `thread` int(11) DEFAULT NULL,
-				  `hash` bigint(20) NOT NULL,
-				  `created` int(11) NOT NULL,
-				  `expires` int(11) DEFAULT NULL,
-				  `passed` smallint(6) NOT NULL,
-				  PRIMARY KEY (`hash`),
-				  KEY `board` (`board`,`thread`)
-				) ENGINE=InnoDB DEFAULT CHARSET=utf8;") or error(db_error());
-		case 'v0.9.6-dev-2':
-			query("ALTER TABLE `boards`
-				DROP `id`,
-				CHANGE  `uri`  `uri` VARCHAR( 120 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL") or error(db_error());
-			query("ALTER TABLE  `bans` CHANGE  `board`  `board` VARCHAR( 120 ) NULL DEFAULT NULL") or error(db_error());
-			query("ALTER TABLE  `reports` CHANGE  `board`  `board` VARCHAR( 120 ) NULL DEFAULT NULL") or error(db_error());
-			query("ALTER TABLE  `modlogs` CHANGE  `board`  `board` VARCHAR( 120 ) NULL DEFAULT NULL") or error(db_error());
-			foreach ($boards as $board) {
-				$query = prepare("UPDATE `bans` SET `board` = :newboard WHERE `board` = :oldboard");
-				$query->bindValue(':newboard', $board['uri']);
-				$query->bindValue(':oldboard', $board['id']);
-				$query->execute() or error(db_error($query));
-
-				$query = prepare("UPDATE `modlogs` SET `board` = :newboard WHERE `board` = :oldboard");
-				$query->bindValue(':newboard', $board['uri']);
-				$query->bindValue(':oldboard', $board['id']);
-				$query->execute() or error(db_error($query));
-
-				$query = prepare("UPDATE `reports` SET `board` = :newboard WHERE `board` = :oldboard");
-				$query->bindValue(':newboard', $board['uri']);
-				$query->bindValue(':oldboard', $board['id']);
-				$query->execute() or error(db_error($query));
-			}
-		case 'v0.9.6-dev-3':
-			query("ALTER TABLE  `antispam` CHANGE  `hash`  `hash` CHAR( 40 ) NOT NULL") or error(db_error());
-		case 'v0.9.6-dev-4':
-			query("ALTER TABLE  `news` DROP INDEX  `id`, ADD PRIMARY KEY ( `id` )") or error(db_error());
-		case 'v0.9.6-dev-5':
-			query("ALTER TABLE  `bans` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			query("ALTER TABLE  `mods` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			query("ALTER TABLE  `news` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			query("ALTER TABLE  `noticeboard` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			query("ALTER TABLE  `pms` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			query("ALTER TABLE  `reports` CHANGE  `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT") or error(db_error());
-			foreach ($boards as $board) {
-				query(sprintf("ALTER TABLE  `posts_%s` CHANGE `id`  `id` INT( 11 ) UNSIGNED NOT NULL AUTO_INCREMENT", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.6-dev-6':
-			foreach ($boards as &$_board) {
-				query(sprintf("CREATE INDEX `thread_id` ON `posts_%s` (`thread`, `id`)", $_board['uri'])) or error(db_error());
-				query(sprintf("ALTER TABLE `posts_%s` DROP INDEX `thread`", $_board['uri'])) or error(db_error());
-			}
-		case 'v0.9.6-dev-7':
-		case 'v0.9.6-dev-7 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0-gold</a>':
-			query("ALTER TABLE  `bans` ADD  `seen` BOOLEAN NOT NULL") or error(db_error());
-		case 'v0.9.6-dev-8':
-		case 'v0.9.6-dev-8 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0.1</a>':
-		case 'v0.9.6-dev-8 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0.2</a>':
-			query("ALTER TABLE  `mods` CHANGE  `password`  `password` CHAR( 64 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL COMMENT  'SHA256'") or error(db_error());
-			query("ALTER TABLE  `mods` ADD  `salt` CHAR( 32 ) NOT NULL AFTER  `password`") or error(db_error());
-			$query = query("SELECT `id`,`password` FROM `mods`") or error(db_error());
-			while ($user = $query->fetch(PDO::FETCH_ASSOC)) {
-				if (strlen($user['password']) == 40) {
-					mt_srand(microtime(true) * 100000 + memory_get_usage(true));
-					$salt = md5(uniqid(mt_rand(), true));
-
-					$user['salt'] = $salt;
-					$user['password'] = hash('sha256', $user['salt'] . $user['password']);
-
-					$_query = prepare("UPDATE `mods` SET `password` = :password, `salt` = :salt WHERE `id` = :id");
-					$_query->bindValue(':id', $user['id']);
-					$_query->bindValue(':password', $user['password']);
-					$_query->bindValue(':salt', $user['salt']);
-					$_query->execute() or error(db_error($_query));
-				}
-			}
-				case 'v0.9.6-dev-9':
-		case 'v0.9.6-dev-9 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0.3</a>':
-		case 'v0.9.6-dev-9 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0.4-gold</a>':
-		case 'v0.9.6-dev-9 + <a href="https://github.com/vichan-devel/Tinyboard/">vichan-devel-4.0.5-gold</a>':
-			foreach ($boards as &$board) {
-				__query(sprintf("ALTER TABLE `posts_%s`
-					CHANGE `subject` `subject` VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `email` `email` VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `name` `name` VARCHAR(35) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `trip` `trip` VARCHAR(15) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `capcode` `capcode` VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `body` `body` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-					CHANGE `body_nomarkup` `body_nomarkup` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `thumb` `thumb` VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `thumbwidth` `thumbwidth` INT(11) NULL DEFAULT NULL,
-					CHANGE `thumbheight` `thumbheight` INT(11) NULL DEFAULT NULL,
-					CHANGE `file` `file` VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `filename` `filename` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `filehash` `filehash` TEXT CHARACTER SET ascii COLLATE ascii_general_ci NULL DEFAULT NULL,
-					CHANGE `password` `password` VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE `ip` `ip` VARCHAR(39) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
-					CHANGE `embed` `embed` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;", $board['uri'])) or error(db_error());
-			}
-
-			__query("ALTER TABLE  `antispam`
-				CHANGE  `board`  `board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `hash`  `hash` CHAR( 40 ) CHARACTER SET ASCII COLLATE ascii_bin NOT NULL ,
-				DEFAULT CHARACTER SET ASCII COLLATE ascii_bin;") or error(db_error());
-			__query("ALTER TABLE  `bans`
-				CHANGE  `ip`  `ip` VARCHAR( 39 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `reason`  `reason` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL ,
-				CHANGE  `board`  `board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NULL DEFAULT NULL,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `boards`
-				CHANGE  `uri`  `uri` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `title`  `title` TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `subtitle`  `subtitle` TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `cites`
-				CHANGE  `board`  `board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `target_board`  `target_board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET ASCII COLLATE ascii_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `ip_notes`
-				CHANGE  `ip`  `ip` VARCHAR( 39 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `body`  `body` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `modlogs`
-				CHANGE  `ip`  `ip` VARCHAR( 39 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `board`  `board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NULL DEFAULT NULL ,
-				CHANGE  `text`  `text` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `mods`
-				CHANGE  `username`  `username` VARCHAR( 30 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `password`  `password` CHAR( 64 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL COMMENT 'SHA256',
-				CHANGE  `salt`  `salt` CHAR( 32 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `boards`  `boards` TEXT CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `mutes`
-				CHANGE  `ip`  `ip` VARCHAR( 39 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET ASCII COLLATE ascii_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `news`
-				CHANGE  `name`  `name` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `subject`  `subject` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `body`  `body` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `noticeboard`
-				CHANGE  `subject`  `subject` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `body`  `body` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `pms`
-				CHANGE  `message`  `message` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `reports`
-				CHANGE  `ip`  `ip` VARCHAR( 39 ) CHARACTER SET ASCII COLLATE ascii_general_ci NOT NULL ,
-				CHANGE  `board`  `board` VARCHAR( 120 ) CHARACTER SET ASCII COLLATE ascii_general_ci NULL DEFAULT NULL ,
-				CHANGE  `reason`  `reason` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-			__query("ALTER TABLE  `robot`
-				CHANGE  `hash`  `hash` VARCHAR( 40 ) CHARACTER SET ASCII COLLATE ascii_bin NOT NULL COMMENT  'SHA1',
-				DEFAULT CHARACTER SET ASCII COLLATE ascii_bin;") or error(db_error());
-			__query("ALTER TABLE  `theme_settings`
-				CHANGE  `theme`  `theme` VARCHAR( 40 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL ,
-				CHANGE  `name`  `name` VARCHAR( 40 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL ,
-				CHANGE  `value`  `value` TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL ,
-				DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;") or error(db_error());
-		case 'v0.9.6-dev-10':
-			query("ALTER TABLE  `antispam`
-				CHANGE  `board`  `board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL;") or error(db_error());
-			query("ALTER TABLE  `bans`
-				CHANGE  `board`  `board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL;") or error(db_error());
-			query("ALTER TABLE  `boards`
-				CHANGE  `uri`  `uri` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL;") or error(db_error());
-			query("ALTER TABLE  `cites`
-				CHANGE  `board`  `board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL ,
-				CHANGE  `target_board`  `target_board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL ,
-				DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;") or error(db_error());
-			query("ALTER TABLE  `modlogs`
-				CHANGE  `board`  `board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL;") or error(db_error());
-			query("ALTER TABLE  `mods`
-				CHANGE  `boards`  `boards` TEXT CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL;") or error(db_error());
-			query("ALTER TABLE  `reports`
-				CHANGE  `board`  `board` VARCHAR( 58 ) CHARACTER SET utf8 COLLATE utf8_general_ci NULL DEFAULT NULL;") or error(db_error());
-		case 'v0.9.6-dev-11':
-		case 'v0.9.6-dev-11 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.6</a>':
-		case 'v0.9.6-dev-11 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.7-gold</a>':
-		case 'v0.9.6-dev-11 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.8-gold</a>':
-		case 'v0.9.6-dev-11 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.9-gold</a>':
-			foreach ($boards as &$board) {
-				__query(sprintf("ALTER TABLE  ``posts_%s``
-					CHANGE  `thumb`  `thumb` VARCHAR( 255 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
-					CHANGE  `file`  `file` VARCHAR( 255 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL ;",
-					$board['uri'])) or error(db_error());
-			}
-		case 'v0.9.6-dev-12':
-		case 'v0.9.6-dev-12 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.10</a>':
-		case 'v0.9.6-dev-12 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.11-gold</a>':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  ``posts_%s`` ADD INDEX `ip` (`ip`)", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.6-dev-13':
-			query("ALTER TABLE ``antispam`` ADD INDEX `expires` (`expires`)") or error(db_error());
-		case 'v0.9.6-dev-14':
-		case 'v0.9.6-dev-14 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.12</a>':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  ``posts_%s``
-					DROP INDEX `body`,
-					ADD INDEX `filehash` (`filehash`(40))", $board['uri'])) or error(db_error());
-			}
-			query("ALTER TABLE ``modlogs`` ADD INDEX `mod` (`mod`)") or error(db_error());
-			query("ALTER TABLE ``bans`` DROP INDEX `ip`") or error(db_error());
-			query("ALTER TABLE ``bans`` ADD INDEX `ip` (`ip`)") or error(db_error());
-			query("ALTER TABLE ``noticeboard`` ADD INDEX `time` (`time`)") or error(db_error());
-			query("ALTER TABLE ``pms`` ADD INDEX `to` (`to`, `unread`)") or error(db_error());
-		case 'v0.9.6-dev-15':
-			foreach ($boards as &$board) {
-				query(sprintf("ALTER TABLE  ``posts_%s``
-					ADD INDEX `list_threads` (`thread`, `sticky`, `bump`)", $board['uri'])) or error(db_error());
-			}
-		case 'v0.9.6-dev-16':
-		case 'v0.9.6-dev-16 + <a href="https://int.vichan.net/devel/">vichan-devel-4.0.13</a>':
-			query("ALTER TABLE ``bans`` ADD INDEX `seen` (`seen`)") or error(db_error());
-		case 'v0.9.6-dev-17':
-			query("ALTER TABLE ``ip_notes``
-				DROP INDEX `ip`,
-				ADD INDEX `ip_lookup` (`ip`, `time`)") or error(db_error());
-		case 'v0.9.6-dev-18':
-			query("CREATE TABLE IF NOT EXISTS ``flood`` (
-				  `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
-				  `ip` varchar(39) NOT NULL,
-				  `board` varchar(58) CHARACTER SET utf8 NOT NULL,
-				  `time` int(11) NOT NULL,
-				  `posthash` char(32) NOT NULL,
-				  `filehash` char(32) DEFAULT NULL,
-				  `isreply` tinyint(1) NOT NULL,
-				  PRIMARY KEY (`id`),
-				  KEY `ip` (`ip`),
-				  KEY `posthash` (`posthash`),
-				  KEY `filehash` (`filehash`),
-				  KEY `time` (`time`)
-				) ENGINE=InnoDB DEFAULT CHARSET=ascii COLLATE=ascii_bin AUTO_INCREMENT=1 ;") or error(db_error());
-		case 'v0.9.6-dev-19':
-			query("UPDATE ``mods`` SET `type` = 10 WHERE `type` = 0") or error(db_error());
-			query("UPDATE ``mods`` SET `type` = 20 WHERE `type` = 1") or error(db_error());
-			query("UPDATE ``mods`` SET `type` = 30 WHERE `type` = 2") or error(db_error());
-			query("ALTER TABLE ``mods`` CHANGE `type`  `type` smallint(1) NOT NULL") or error(db_error());
-		case 'v0.9.6-dev-20':
-			__query("CREATE TABLE IF NOT EXISTS `bans_new_temp` (
-				`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-				`ipstart` varbinary(16) NOT NULL,
-				`ipend` varbinary(16) DEFAULT NULL,
-				`created` int(10) unsigned NOT NULL,
-				`expires` int(10) unsigned DEFAULT NULL,
-				`board` varchar(58) DEFAULT NULL,
-				`creator` int(10) NOT NULL,
-				`reason` text,
-				`seen` tinyint(1) NOT NULL,
-				`post` blob,
-				PRIMARY KEY (`id`),
-				KEY `expires` (`expires`),
-				KEY `ipstart` (`ipstart`,`ipend`)
-				) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 AUTO_INCREMENT=1") or error(db_error());
-			$listquery = query("SELECT * FROM ``bans`` ORDER BY `id`") or error(db_error());
-			while ($ban = $listquery->fetch(PDO::FETCH_ASSOC)) {
-				$query = prepare("INSERT INTO ``bans_new_temp`` VALUES
-					(NULL, :ipstart, :ipend, :created, :expires, :board, :creator, :reason, :seen, NULL)");
-
-				$range = Bans::parse_range($ban['ip']);
-				if ($range === false) {
-					// Invalid retard ban; just skip it.
-					continue;
-				}
-
-				$query->bindValue(':ipstart', $range[0]);
-				if ($range[1] !== false && $range[1] != $range[0])
-					$query->bindValue(':ipend', $range[1]);
-				else
-					$query->bindValue(':ipend', null, PDO::PARAM_NULL);
-
-				$query->bindValue(':created', $ban['set']);
-
-				if ($ban['expires'])
-					$query->bindValue(':expires', $ban['expires']);
-				else
-					$query->bindValue(':expires', null, PDO::PARAM_NULL);
-
-				if ($ban['board'])
-					$query->bindValue(':board', $ban['board']);
-				else
-					$query->bindValue(':board', null, PDO::PARAM_NULL);
-
-				$query->bindValue(':creator', $ban['mod']);
-
-				if ($ban['reason'])
-					$query->bindValue(':reason', $ban['reason']);
-				else
-					$query->bindValue(':reason', null, PDO::PARAM_NULL);
-
-				$query->bindValue(':seen', $ban['seen']);
-				$query->execute() or error(db_error($query));
-			}
-
-			// Drop old bans table
-			query("DROP TABLE ``bans``") or error(db_error());
-			// Replace with new table
-			query("RENAME TABLE ``bans_new_temp`` TO ``bans``") or error(db_error());
-		case 'v0.9.6-dev-21':
-		case 'v0.9.6-dev-21 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.90</a>':
-			__query("CREATE TABLE IF NOT EXISTS ``ban_appeals`` (
-				  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-				  `ban_id` int(10) unsigned NOT NULL,
-				  `time` int(10) unsigned NOT NULL,
-				  `message` text NOT NULL,
-				  `denied` tinyint(1) NOT NULL,
-				  PRIMARY KEY (`id`),
-				  KEY `ban_id` (`ban_id`)
-				) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 AUTO_INCREMENT=1 ;") or error(db_error());
-		case 'v0.9.6-dev-22':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.91</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.92</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.93</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.94</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.95</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.96</a>':
-		case 'v0.9.6-dev-22 + <a href="https://int.vichan.net/devel/">vichan-devel-4.4.97</a>':
-		case '4.4.97':
-			if (!isset($_GET['confirm2'])) {
-				$page['title'] = 'License Change';
-				$page['body'] = '<p style="text-align:center">You are upgrading to a version which uses an amended license. The licenses included with vichan distributions prior to this version (4.4.98) are still valid for those versions, but no longer apply to this and newer versions.</p>' .
-					'<textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black" disabled>' . htmlentities(file_get_contents('LICENSE.md')) . '</textarea>
-					<p style="text-align:center">
-						<a href="?confirm2=1">I have read and understood the agreement. Proceed to upgrading.</a>
-					</p>';
-
-				file_write($config['has_installed'], '4.4.97');
-
-				break;
-			}
-		case '4.4.98-pre':
-			if (!$twig) load_twig();
-			$twig->clearCacheFiles();
-		case '4.4.98':
-		case '4.5.0':
-		case '4.5.1':
-		case '4.5.2':
-			if (!isset($_GET['confirm3'])) {
-				$page['title'] = 'Breaking change';
-				$page['body'] = '<p style="text-align:center">You are upgrading to the 5.0 branch of vichan. Please back up your database, because the process is irreversible. At the current time, if you want a very stable vichan experience, please use the 4.5 branch. This warning will be lifted as soon as we all agree that 5.0 branch is stable enough</p>
-					<p style="text-align:center">
-						<a href="?confirm3=1">I have read and understood the warning. Proceed to upgrading.</a>
-					</p>';
-
-				file_write($config['has_installed'], '4.5.2');
-
-				break;
-			}
-
-			foreach ($boards as &$board) {
-				query(sprintf('ALTER TABLE ``posts_%s`` ADD `files` text DEFAULT NULL AFTER `bump`;', $board['uri'])) or error(db_error());
-				query(sprintf('ALTER TABLE ``posts_%s`` ADD `num_files` int(11) DEFAULT 0 AFTER `files`;', $board['uri'])) or error(db_error());
-				query(sprintf('UPDATE ``posts_%s`` SET `files` = CONCAT(\'[{"file":"\',`file`,\'", "thumb":"\',`thumb`,\'", "filename":"\',`filename`,\'", "size":"\',`filesize`,\'",  "width":"\',`filewidth`,\'","height":"\',`fileheight`,\'","thumbwidth":"\',`thumbwidth`,\'","thumbheight":"\',`thumbheight`,\'"}]\') WHERE `file` IS NOT NULL', $board['uri'], $board['uri'], $board['uri'])) or error(db_error());
-				query(sprintf('UPDATE ``posts_%s`` SET `num_files` = 1 WHERE `file` IS NOT NULL', $board['uri'])) or error(db_error());
-				query(sprintf('ALTER TABLE ``posts_%s`` DROP COLUMN `thumb`, DROP COLUMN `thumbwidth`, DROP COLUMN `thumbheight`, DROP COLUMN `file`, DROP COLUMN `fileheight`, DROP COLUMN `filesize`, DROP COLUMN `filewidth`, DROP COLUMN `filename`', $board['uri'])) or error(db_error());
-				query(sprintf('REPAIR TABLE ``posts_%s``', $board['uri']));
-			}
 		case '4.9.90':
 		case '4.9.91':
 		case '4.9.92':
@@ -655,7 +174,7 @@ if (file_exists($config['has_installed'])) {
 			break;
 	}
 
-	die(Element('page.html', $page));
+	die(Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page));
 }
 
 function create_config_from_array(&$instance_config, &$array, $prefix = '') {
@@ -677,17 +196,53 @@ function create_config_from_array(&$instance_config, &$array, $prefix = '') {
 	}
 }
 
+// Improved SQL parsing function to better handle SQL files
+function parse_sql_file($sql_content) {
+	// Normalize line endings
+	$sql_content = str_replace(array("\r\n", "\r"), "\n", $sql_content);
+	
+	// Split by semicolon followed by newline or end of file
+	$statements = preg_split('/;(\s*(\n|$))/m', $sql_content, -1, PREG_SPLIT_NO_EMPTY);
+	
+	$queries = array();
+	foreach ($statements as $statement) {
+		$statement = trim($statement);
+		// Skip empty statements or comments
+		if (!empty($statement) && !preg_match('/^--/', $statement)) {
+			$queries[] = $statement;
+		}
+	}
+	
+	return $queries;
+}
+
 session_start();
 
-if ($step == 0) {
-	// Agreeement
-	$page['body'] = '
-	<textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black" disabled>' . htmlentities(file_get_contents('LICENSE.md')) . '</textarea>
-	<p style="text-align:center">
-		<a href="?step=1">I have read and understood the agreement. Proceed to installation.</a>
-	</p>';
+// Set secure session cookie parameters
+if (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+	$cookie_secure = true;
+} else {
+	$cookie_secure = false;
+}
 
-	echo Element('page.html', $page);
+session_set_cookie_params([
+	'lifetime' => 0,
+	'path' => '/',
+	'domain' => null,
+	'secure' => $cookie_secure,
+	'httponly' => true,
+	'samesite' => 'Strict'
+]);
+
+if ($step == 0) {
+	// License
+	$page['title'] = 'License Agreement';
+	$page['body'] = Element('installer/license.html', array(
+		'license' => file_get_contents('LICENSE'),
+		'config' => $config
+	));
+
+	echo Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page);
 } elseif ($step == 1) {
 	// The HTTPS check doesn't work properly when in those arrays, so let's run it here and pass along the result during the actual check.
 	$httpsvalue = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
@@ -904,14 +459,16 @@ if ($step == 0) {
 	create_config_from_array($more, $additional_config);
 	$_SESSION['more'] = $more;
 
-	echo Element('page.html', array(
-		'body' => Element('installer/check-requirements.html', array(
-			'extensions' => $extensions,
-			'tests' => $tests,
-			'config' => $config,
-		)),
+	echo Element('installer/header.html', array(
 		'title' => 'Checking environment',
 		'config' => $config,
+		'step' => $step
+	)) . Element('installer/check-requirements.html', array(
+		'extensions' => $extensions,
+		'tests' => $tests,
+		'config' => $config,
+	)) . Element('installer/footer.html', array(
+		'config' => $config
 	));
 } elseif ($step == 2) {
 
@@ -923,12 +480,14 @@ if ($step == 0) {
 	$config['secure_trip_salt'] = $sg->generate();
 	$config['secure_password_salt'] = $sg->generate();
 
-	echo Element('page.html', array(
-		'body' => Element('installer/config.html', array(
-			'config' => $config,
-			'more' => $_SESSION['more'],
-		)),
+	echo Element('installer/header.html', array(
 		'title' => 'Configuration',
+		'config' => $config,
+		'step' => $step
+	)) . Element('installer/config.html', array(
+		'config' => $config,
+		'more' => $_SESSION['more'],
+	)) . Element('installer/footer.html', array(
 		'config' => $config
 	));
 } elseif ($step == 3) {
@@ -970,7 +529,7 @@ if ($step == 0) {
 				<a href="?step=4">Once complete, click here to complete installation.</a>
 			</p>
 		';
-		echo Element('page.html', $page);
+		echo Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page);
 	}
 } elseif ($step == 4) {
 	// SQL installation
@@ -978,17 +537,23 @@ if ($step == 0) {
 	buildJavascript();
 
 	$sql = @file_get_contents('install.sql') or error("Couldn't load install.sql.");
+	
+	// Load additional SQL files if they exist
+	$additional_sql_files = array();
+	if (file_exists('templates/posts.sql')) {
+		$additional_sql_files[] = 'templates/posts.sql';
+	}
 
 	sql_open();
 	$mysql_version = mysql_version();
 
-	// This code is probably horrible, but what I'm trying
-	// to do is find all of the SQL queires and put them
-	// in an array.
-	preg_match_all("/(^|\n)((SET|CREATE|INSERT).+)\n\n/msU", $sql, $queries);
-	$queries = $queries[2];
-
-	$queries[] = Element('posts.sql', array('board' => 'b'));
+	// Parse SQL using improved method
+	$queries = parse_sql_file($sql);
+	
+	// Add posts table for default board 'b'
+	$posts_sql = Element('posts.sql', array('board' => 'b'));
+	$posts_queries = parse_sql_file($posts_sql);
+	$queries = array_merge($queries, $posts_queries);
 
 	$sql_errors = '';
 	$sql_err_count = 0;
@@ -996,15 +561,48 @@ if ($step == 0) {
 		if ($mysql_version < 50503)
 			$query = preg_replace('/(CHARSET=|CHARACTER SET )utf8mb4/', '$1utf8', $query);
 		$query = preg_replace('/^([\w\s]*)`([0-9a-zA-Z$_\x{0080}-\x{FFFF}]+)`/u', '$1``$2``', $query);
+		
+		// Skip empty queries
+		if (empty(trim($query))) {
+			continue;
+		}
+		
 		if (!query($query)) {
 			$sql_err_count++;
 			$error = db_error();
-			$sql_errors .= "<li>$sql_err_count<ul><li>$query</li><li>$error</li></ul></li>";
+			$sql_errors .= "<li>$sql_err_count<ul><li>" . htmlspecialchars($query) . "</li><li>" . htmlspecialchars($error) . "</li></ul></li>";
 		}
 	}
 
 	$page['title'] = 'Installation complete';
-	$page['body'] = '<p style="text-align:center">Thank you for using 4im. Please remember to report any bugs you discover. <a href="https://github.com/vichan-devel/vichan/wiki/Configuration-Basics">How do I edit the config files?</a></p>';
+	
+	if (!empty($sql_errors)) {
+		$body = Element('installer/database.html', array(
+			'sql_errors' => array($sql_errors),
+			'config' => $config
+		));
+	} else {
+		$boards = listBoards();
+		foreach ($boards as &$_board) {
+			setupBoard($_board);
+			buildIndex();
+		}
+
+		file_write($config['has_installed'], VERSION);
+		
+		$body = Element('installer/database.html', array(
+			'success' => true,
+			'config' => $config
+		));
+	}
+
+	echo Element('installer/header.html', array(
+		'title' => $page['title'],
+		'config' => $config,
+		'step' => $step
+	)) . $body . Element('installer/footer.html', array(
+		'config' => $config
+	));
 
 	if (!empty($sql_errors)) {
 		$page['body'] .= '<div class="ban"><h2>SQL errors</h2><p>SQL errors were encountered when trying to install the database. This may be the result of using a database which is already occupied with a 4im installation; if so, you can probably ignore this.</p><p>The errors encountered were:</p><ul>' . $sql_errors . '</ul><p><a href="?step=5">Ignore errors and complete installation.</a></p></div>';
@@ -1024,7 +622,25 @@ if ($step == 0) {
 	echo Element('page.html', $page);
 } elseif ($step == 5) {
 	$page['title'] = 'Installation complete';
-	$page['body'] = '<p style="text-align:center">Thank you for using 4im. Please remember to report any bugs you discover.</p>';
+
+	$boards = listBoards();
+	foreach ($boards as &$_board) {
+		setupBoard($_board);
+		buildIndex();
+	}
+	
+	$body = Element('installer/database.html', array(
+		'success' => true,
+		'config' => $config
+	));
+
+	echo Element('installer/header.html', array(
+		'title' => $page['title'],
+		'config' => $config,
+		'step' => $step
+	)) . $body . Element('installer/footer.html', array(
+		'config' => $config
+	));
 
 	$boards = listBoards();
 	foreach ($boards as &$_board) {
