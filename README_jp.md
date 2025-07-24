@@ -40,6 +40,4 @@
 連絡はプロフィール記載のメール、Matrixなどお好きな方法でどうぞ。PGPを使いたい方のために、私のフィンガープリントは`618f8cbf95f6eaa3b7a9d6d610ecf5f8be40a8ce`です。
 
 ## ライセンス
-GNU General Public License version 3以降。ライセンスのコピーはリポジトリに[同梱](LICENSE)されています。
-
-今後の展開次第では、[AGPL](https://www.gnu.org/licenses/agpl.html)や[LGPL](https://www.gnu.org/licenses/lgpl.html)など別の派生ライセンスに変更する可能性があります。
+GNU Affero General Public License version 3以降。ライセンスのコピーはリポジトリに[同梱](LICENSE)されています。

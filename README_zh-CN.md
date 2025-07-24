@@ -34,6 +34,4 @@
 你可以通过 GitHub 个人资料页的公开电子邮件、Matrix 等联系我了解更多。如果想要使用 PGP，我的指纹是`618f8cbf95f6eaa3b7a9d6d610ecf5f8be40a8ce`。
 
 ## 许可证
-GNU 通用公共许可证第三版或任何以后版本。许可证的副本已经[包含](LICENSE)在仓库中。
-
-根据实际情况，有可能改用该许可证的其它衍生许可证，如 [AGPL](https://www.gnu.org/licenses/agpl.html) 或 [LGPL](https://www.gnu.org/licenses/lgpl.html)。
+GNU Affero 通用公共许可证第三版或任何以后版本。许可证的副本已经[包含](LICENSE)在仓库中。

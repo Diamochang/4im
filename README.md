@@ -34,6 +34,4 @@ As I am a high school student, I am inevitably busy with school and have to find
 You can hit me up via the email listed on my profile, Matrix, or whatever floats your boat. If you want to use PGP, my fingerprint is `618f8cbf95f6eaa3b7a9d6d610ecf5f8be40a8ce`.
 
 ## License
-GNU General Public License version 3 or any later version. A copy of the license is [included](LICENSE) in the repository.
-
-Depending on how things shake out, I might switch to another derivative license like [AGPL](https://www.gnu.org/licenses/agpl.html) or [LGPL](https://www.gnu.org/licenses/lgpl.html).
+GNU Affero General Public License version 3 or any later version. A copy of the license is [included](LICENSE) in the repository.
