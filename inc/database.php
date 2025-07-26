@@ -90,8 +90,36 @@ function sql_open() {
 		$message = str_replace($config['db']['user'], '<em>hidden</em>', $message);
 		$message = str_replace($config['db']['password'], '<em>hidden</em>', $message);
 		
-		// Print error
-		error(_('Database error: ') . $message);
+		// Check if we're in the installation process
+		if (defined('INSTALLING') || strpos($_SERVER['SCRIPT_NAME'], 'install.php') !== false) {
+			// Use the install.php error handler
+			if (function_exists('install_error')) {
+				install_error('Database Error', $message);
+			} else {
+				// If install_error is not available, show a simple error
+				die('<!DOCTYPE html>
+<html>
+<head>
+	<title>Installation Error</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 50px; background: #f5f5f5; }
+		.error { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+		h1 { color: #c62828; margin-top: 0; }
+	</style>
+</head>
+<body>
+	<div class="error">
+		<h1>Database Error</h1>
+		<p>' . htmlspecialchars($message) . '</p>
+		<p><a href="install.php">Back to installation</a></p>
+	</div>
+</body>
+</html>');
+			}
+		} else {
+			// Print error
+			error(_('Database error: ') . $message);
+		}
 	}
 }
 
@@ -126,26 +154,152 @@ function query($query) {
 	
 	sql_open();
 	
-	if ($config['debug']) {
-		if ($config['debug_explain'] && preg_match('/^(SELECT|INSERT|UPDATE|DELETE) /i', $query)) {
-			$explain = $pdo->query("EXPLAIN $query") or error(db_error());
+	// Check if we're in the installation process
+	if ((defined('INSTALLING') || strpos($_SERVER['SCRIPT_NAME'], 'install.php') !== false)) {
+		try {
+			// Execute the query
+			$result = $pdo->query($query);
+			
+			// Collect debug information if needed
+			if ($config['debug']) {
+				$debug_info = collect_debug_info($query);
+				
+				$time = microtime(true) - $debug_info['start_time'];
+				$debug['sql'][] = array(
+					'query' => $query,
+					'rows' => $result ? $result->rowCount() : 0,
+					'explain' => $debug_info['explain'],
+					'time' => '~' . round($time * 1000, 2) . 'ms'
+				);
+				$debug['time']['db_queries'] += $time;
+			}
+			
+			return $result;
+		} catch (PDOException $e) {
+			$error_message = $e->getMessage();
+			
+			// Handle table not found error (expected during installation)
+			if (strpos($error_message, 'Base table or view not found') !== false ||
+			    strpos($error_message, '1146') !== false) {
+				return false;
+			} 
+			
+			// Handle connection errors
+			if (strpos($error_message, 'Connection refused') !== false ||
+			    strpos($error_message, 'Access denied') !== false) {
+				// Mask sensitive information
+				$error_message = mask_sensitive_info($error_message, $config);
+				
+				// Use install error handler if available
+				if (function_exists('install_error')) {
+					install_error('Database Connection Error', $error_message);
+				} else {
+					die_generic_error($error_message);
+				}
+			}
+			
+			// Handle other unexpected errors
+			$error_message = mask_sensitive_info($error_message, $config);
+			
+			// Use install error handler if available, otherwise throw error
+			if (defined('INSTALLING') && function_exists('install_error')) {
+				install_error('Database Query Error', $error_message);
+			} else {
+				// Log the error for debugging
+				if ($config['debug']) {
+					error_log("Database Error: " . $error_message);
+				}
+				throw $e;
+			}
 		}
+	}
+	
+	if ($config['debug']) {
 		$start = microtime(true);
-		$query = $pdo->query($query);
-		if (!$query)
+		
+		// Execute the query
+		$result = $pdo->query($query);
+		if (!$result) {
 			return false;
+		}
+		
 		$time = microtime(true) - $start;
+		
+		// Collect and store debug information
+		$explain = null;
+		if ($config['debug_explain'] && preg_match('/^(SELECT|INSERT|UPDATE|DELETE) /i', $query)) {
+			$explain_result = $pdo->query("EXPLAIN $query");
+			if ($explain_result) {
+				$explain = $explain_result->fetchAll(PDO::FETCH_ASSOC);
+			}
+		}
+		
 		$debug['sql'][] = array(
-			'query' => $query->queryString,
-			'rows' => $query->rowCount(),
-			'explain' => isset($explain) ? $explain->fetchAll(PDO::FETCH_ASSOC) : null,
+			'query' => $query,
+			'rows' => $result->rowCount(),
+			'explain' => $explain,
 			'time' => '~' . round($time * 1000, 2) . 'ms'
 		);
 		$debug['time']['db_queries'] += $time;
-		return $query;
+		
+		return $result;
 	}
 
+	// Normal query execution without debug
 	return $pdo->query($query);
+}
+
+/**
+ * Collects debug information for a query
+ */
+function collect_debug_info($query) {
+	$start_time = microtime(true);
+	$explain = null;
+	
+	if ($GLOBALS['config']['debug_explain'] && preg_match('/^(SELECT|INSERT|UPDATE|DELETE) /i', $query)) {
+		$explain_result = $GLOBALS['pdo']->query("EXPLAIN $query");
+		if ($explain_result) {
+			$explain = $explain_result->fetchAll(PDO::FETCH_ASSOC);
+		}
+	}
+	
+	return array(
+		'start_time' => $start_time,
+		'explain' => $explain
+	);
+}
+
+/**
+ * Masks sensitive information in error messages
+ */
+function mask_sensitive_info($message, $config) {
+	$message = str_replace($config['db']['user'], '<em>hidden</em>', $message);
+	$message = str_replace($config['db']['password'], '<em>hidden</em>', $message);
+	return $message;
+}
+
+/**
+ * Displays a generic error message
+ */
+function die_generic_error($message) {
+	die('<!DOCTYPE html>
+<html>
+<head>
+	<title>Installation Error</title>
+	<style>
+		body { font-family: Arial, sans-serif; margin: 50px; background: #f5f5f5; }
+		.error { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+		h1 { color: #c62828; margin-top: 0; }
+	</style>
+</head>
+<body>
+	<div class="error">
+		<h1>Database Error</h1>
+		<p>' . htmlspecialchars($message) . '</p>
+		<p><a href="install.php">Back to installation</a></p>
+	</div>
+</body>
+</html>');
 }
 
 function db_error($PDOStatement = null) {

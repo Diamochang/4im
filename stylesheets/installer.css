@@ -58,6 +58,8 @@ body.installer {
     font-weight: 500;
     transition: all 0.3s ease;
     border: 1px solid #c8e6c9;
+    box-shadow: none; /* 移除可能的阴影 */
+    position: static; /* 确保不是绝对定位 */
 }
 
 .installer-nav li.active {
@@ -65,12 +67,14 @@ body.installer {
     color: #fff;
     font-weight: bold;
     border-color: #4c9a34;
-    box-shadow: 0 2px 4px rgba(76, 154, 52, 0.2);
+    box-shadow: none;
+    transform: none;
 }
 
 .installer-nav li:hover:not(.active) {
     background: #c8e6c9;
     cursor: pointer;
+    transform: none;
 }
 
 .installer-main {
@@ -98,6 +102,7 @@ body.installer {
     width: 100%;
     height: 400px;
     margin: 1em auto;
+    display: block;
     display: block;
     background: #f9f9f9;
     color: #333;
@@ -133,8 +138,18 @@ body.installer {
 
 .installer-continue a:hover {
     background: #0d6f09;
-    transform: translateY(-2px);
+    transform: none;
     box-shadow: 0 4px 8px rgba(76, 154, 52, 0.3);
+}
+
+.installer-welcome .welcome-text {
+    font-size: 1.1em;
+    line-height: 1.8;
+    margin: 1.5em 0;
+}
+
+.installer-welcome .welcome-text p {
+    margin-bottom: 1em;
 }
 
 .modlog {
@@ -289,7 +304,7 @@ body.installer {
 
 .installer-form input[type="submit"]:hover {
     background: #0d6f09;
-    transform: translateY(-2px);
+    transform: none;
     box-shadow: 0 4px 8px rgba(76, 154, 52, 0.3);
 }
 
@@ -308,8 +323,129 @@ body.installer {
     margin: 5px 0;
 }
 
+.installer-complete {
+    text-align: center;
+}
+
+.installer-complete .installer-success {
+    text-align: left;
+}
+
 .text-center {
     text-align: center;
+}
+
+.installer-error {
+    text-align: center;
+    padding: 2em;
+}
+
+.installer-error-title {
+    color: #c62828;
+    margin-bottom: 0.5em;
+}
+
+.installer-error-message {
+    font-size: 1.2em;
+    margin-bottom: 1em;
+}
+
+.installer-error-description {
+    margin: 1.5em 0;
+    text-align: left;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.installer-required-extensions {
+    text-align: left;
+    display: inline-block;
+    margin: 1em 0;
+}
+
+.installer-required-extensions li {
+    padding: 0.5em 0;
+}
+
+.extension-status.installed {
+    color: #4caf50;
+    margin-left: 10px;
+}
+
+.extension-status.missing {
+    color: #f44336;
+    margin-left: 10px;
+}
+
+.installer-error-link {
+    margin-top: 1.5em;
+}
+
+.installer-error-link a {
+    display: inline-block;
+    padding: 10px 20px;
+    background: #4c9a34;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: background 0.3s ease;
+}
+
+.installer-error-link a:hover {
+    background: #0d6f09;
+}
+
+.installer-error-debug {
+    text-align: left;
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    overflow-x: auto;
+}
+
+.installer-welcome {
+    text-align: center;
+}
+
+.installer-welcome h2 {
+    color: #0d6f09;
+    margin-bottom: 1.5em;
+}
+
+.installer-welcome .welcome-text {
+    font-size: 1.1em;
+    line-height: 1.8;
+    margin: 2em auto;
+    max-width: 700px;
+    text-align: left;
+}
+
+.installer-welcome .welcome-text p {
+    margin-bottom: 1.2em;
+}
+
+.installer-complete {
+    text-align: center;
+}
+
+.installer-complete h2 {
+    color: #0d6f09;
+    margin-bottom: 1.5em;
+}
+
+.installer-complete-content {
+    max-width: 700px;
+    margin: 0 auto 2em;
+    text-align: left;
+}
+
+.installer-complete-content p {
+    margin-bottom: 1.2em;
+    font-size: 1.1em;
+    line-height: 1.6;
 }
 
 .fa {
@@ -341,5 +477,10 @@ body.installer {
     .installer-main {
         margin: 1em;
         padding: 1em;
+    }
+    
+    .installer-welcome .welcome-text,
+    .installer-complete-content {
+        padding: 0 1em;
     }
 }

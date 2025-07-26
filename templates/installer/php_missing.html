@@ -1,0 +1,27 @@
+<div class="installer-error">
+    <h2 class="installer-error-title">{% trans %}PHP extension missing{% endtrans %}</h2>
+    <p class="installer-error-message">{% trans %}One or more required PHP extensions are missing.{% endtrans %}</p>
+    
+    <div class="installer-error-description">
+        <p>{% trans %}The following PHP extensions are required for 4im installation to function properly:{% endtrans %}</p>
+        
+        <ul class="installer-required-extensions">
+            {% for extension in extensions %}
+                <li>
+                    <strong>{{ extension.name }}</strong>
+                    {% if extension.installed %}
+                        <span class="extension-status installed">{% trans %}Installed{% endtrans %}</span>
+                    {% else %}
+                        <span class="extension-status missing">{% trans %}Missing{% endtrans %}</span>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+        
+        <p>{% trans %}Please install the missing extensions to continue with the installation.{% endtrans %}</p>
+    </div>
+    
+    <p class="installer-error-link">
+        <a href="?step=0">{% trans %}Try again{% endtrans %}</a>
+    </p>
+</div>

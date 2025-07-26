@@ -1,0 +1,18 @@
+<div class="installer-complete">
+    <h2>{% trans %}Installation Complete{% endtrans %}</h2>
+    
+    <div class="installer-complete-content">
+        <p>{% trans %}Congratulations! 4im has been successfully installed on your server.{% endtrans %}</p>
+        
+        <p>{% trans %}You can now access the moderation panel to configure your imageboard, set up boards, and customize the appearance and functionality to your liking.{% endtrans %}</p>
+        
+        <p>{% trans %}For security reasons, the install.php file has been removed. {% endtrans %}</p>
+        
+        <p>{% trans %}Thank you for choosing 4im. Please remember to report any bugs you discover on our issue tracker.{% endtrans %}</p>
+    </div>
+    
+    <div class="installer-continue">
+        <a href="{{ config.root }}mod.php">{% trans %}Continue to your new installation{% endtrans %}</a>
+    </div>
+</div>
+<!-- This file is no longer used as we've merged the database installation and completion pages -->

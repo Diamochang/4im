@@ -2,6 +2,7 @@
 
 // Installation/upgrade file
 define('VERSION', '5.2.1');
+define('INSTALLING', true); // 标记正在安装
 require 'inc/bootstrap.php';
 loadConfig();
 
@@ -103,6 +104,10 @@ if (file_exists($config['has_installed'])) {
 	}
 
 	$boards = listBoards();
+	// Check if listBoards returned false (meaning the table doesn't exist yet)
+	if ($boards === false) {
+		$boards = array(); // Set to empty array to prevent errors
+	}
     
 	// Well, 4im don't need to combine very old versions of vichan cuz this fork will change a lot things. Starting from 4.9.90 is a good idea, maybe.
 	switch ($version) {
@@ -201,19 +206,84 @@ function parse_sql_file($sql_content) {
 	// Normalize line endings
 	$sql_content = str_replace(array("\r\n", "\r"), "\n", $sql_content);
 	
-	// Split by semicolon followed by newline or end of file
+	// Remove comments and empty lines
+	$lines = explode("\n", $sql_content);
+	$sql_content = "";
+	foreach ($lines as $line) {
+		$line = rtrim($line);
+		// Skip empty lines and comments
+		if (empty($line) || preg_match('/^\s*--/', $line)) {
+			continue;
+		}
+		$sql_content .= $line . "\n";
+	}
+	
+	// Split by semicolon at the end of a statement
 	$statements = preg_split('/;(\s*(\n|$))/m', $sql_content, -1, PREG_SPLIT_NO_EMPTY);
 	
 	$queries = array();
 	foreach ($statements as $statement) {
 		$statement = trim($statement);
-		// Skip empty statements or comments
-		if (!empty($statement) && !preg_match('/^--/', $statement)) {
+		// Skip empty statements
+		if (!empty($statement)) {
 			$queries[] = $statement;
 		}
 	}
 	
 	return $queries;
+}
+
+// Function to show error page
+function install_error($title, $message, $description = null, $debug = null) {
+	global $config;
+	
+	$page = array(
+		'config' => $config,
+		'title' => 'Installation Error'
+	);
+	
+	$error_data = array(
+		'title' => $title,
+		'message' => $message,
+		'description' => $description,
+		'debug' => $debug,
+		'config' => $config
+	);
+	
+	$body = Element('installer/error.html', $error_data);
+	
+	die(Element('installer/header.html', $page) . $body . Element('installer/footer.html', $page));
+}
+
+// Function to show PHP extension missing error
+function php_extension_error($extensions, $step = 2) {
+	global $config;
+	
+	$page = array(
+		'config' => $config,
+		'title' => 'PHP Extension Missing'
+	);
+	
+	$error_data = array(
+		'extensions' => $extensions,
+		'step' => $step,
+		'config' => $config
+	);
+	
+	$body = Element('installer/php_missing.html', $error_data);
+	
+	die(Element('installer/header.html', $page) . $body . Element('installer/footer.html', $page));
+}
+
+// Check for mbstring
+$missing_extensions = array();
+if (!extension_loaded('mbstring')) {
+	$missing_extensions[] = 'mbstring';
+}
+
+// If mbstring missing, show error
+if (!empty($missing_extensions)) {
+	php_extension_error($missing_extensions);
 }
 
 session_start();
@@ -235,6 +305,14 @@ session_set_cookie_params([
 ]);
 
 if ($step == 0) {
+	// Welcome page
+	$page['title'] = 'Welcome';
+	$page['body'] = Element('installer/welcome.html', array(
+		'config' => $config
+	));
+
+	echo Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page);
+} elseif ($step == 1) {
 	// License
 	$page['title'] = 'License Agreement';
 	$page['body'] = Element('installer/license.html', array(
@@ -243,7 +321,7 @@ if ($step == 0) {
 	));
 
 	echo Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page);
-} elseif ($step == 1) {
+} elseif ($step == 2) {
 	// The HTTPS check doesn't work properly when in those arrays, so let's run it here and pass along the result during the actual check.
 	$httpsvalue = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 	$page['title'] = 'Pre-installation test';
@@ -282,12 +360,12 @@ if ($step == 0) {
 			'required' => false
 		)
 	);
-
+	
 	$tests = array(
 		array(
 			'category' => 'PHP',
 			'name' => 'PHP &ge; 7.4',
-			'result' => PHP_VERSION_ID >= 50400,
+			'result' => PHP_VERSION_ID >= 70400, // Changed to 7.4
 			'required' => true,
 			'message' => '4im requires PHP 7.4 or better.',
 		),
@@ -470,7 +548,7 @@ if ($step == 0) {
 	)) . Element('installer/footer.html', array(
 		'config' => $config
 	));
-} elseif ($step == 2) {
+} elseif ($step == 3) {
 
 	// Basic config
 	$page['title'] = 'Configuration';
@@ -490,7 +568,7 @@ if ($step == 0) {
 	)) . Element('installer/footer.html', array(
 		'config' => $config
 	));
-} elseif ($step == 3) {
+} elseif ($step == 4) {
 	$more = $_POST['more'];
 	unset($_POST['more']);
 
@@ -518,7 +596,7 @@ if ($step == 0) {
 		if (function_exists('opcache_invalidate')) {
 			opcache_invalidate('inc/secrets.php');
 		}
-		header('Location: ?step=4', true, $config['redirect_http']);
+		header('Location: ?step=5', true, $config['redirect_http']);
 	} else {
 		$page['title'] = 'Manual installation required';
 		$page['body'] = '
@@ -526,17 +604,21 @@ if ($step == 0) {
 			<p>Please complete the installation manually by copying and pasting the following code into the contents of <strong>inc/secrets.php</strong>:</p>
 			<textarea style="width:700px;height:370px;margin:auto;display:block;background:white;color:black">' . htmlentities($instance_config) . '</textarea>
 			<p style="text-align:center">
-				<a href="?step=4">Once complete, click here to complete installation.</a>
+				<a href="?step=5">Once complete, click here to complete installation.</a>
 			</p>
 		';
 		echo Element('installer/header.html', $page) . $page['body'] . Element('installer/footer.html', $page);
 	}
-} elseif ($step == 4) {
-	// SQL installation
+} elseif ($step == 5) {
+	// SQL installation and final setup
 
 	buildJavascript();
 
-	$sql = @file_get_contents('install.sql') or error("Couldn't load install.sql.");
+	$sql = @file_get_contents('install.sql') or install_error(
+		'Database Installation Failed',
+		'Couldn\'t load install.sql.',
+		'The file install.sql appears to be missing. Please make sure it exists in the 4im root directory.'
+	);
 	
 	// Load additional SQL files if they exist
 	$additional_sql_files = array();
@@ -552,8 +634,11 @@ if ($step == 0) {
 	
 	// Add posts table for default board 'b'
 	$posts_sql = Element('posts.sql', array('board' => 'b'));
-	$posts_queries = parse_sql_file($posts_sql);
-	$queries = array_merge($queries, $posts_queries);
+	// Make sure we have valid SQL content
+	if (!empty($posts_sql)) {
+		$posts_queries = parse_sql_file($posts_sql);
+		$queries = array_merge($queries, $posts_queries);
+	}
 
 	$sql_errors = '';
 	$sql_err_count = 0;
@@ -573,8 +658,6 @@ if ($step == 0) {
 			$sql_errors .= "<li>$sql_err_count<ul><li>" . htmlspecialchars($query) . "</li><li>" . htmlspecialchars($error) . "</li></ul></li>";
 		}
 	}
-
-	$page['title'] = 'Installation complete';
 	
 	if (!empty($sql_errors)) {
 		$body = Element('installer/database.html', array(
@@ -582,10 +665,21 @@ if ($step == 0) {
 			'config' => $config
 		));
 	} else {
-		$boards = listBoards();
-		foreach ($boards as &$_board) {
-			setupBoard($_board);
-			buildIndex();
+		// Create the default board in the database
+		$default_board_query = query("SELECT COUNT(*) FROM ``boards`` WHERE `uri` = 'b'") or install_error(
+			'Database Error',
+			'Could not check for default board: ' . db_error()
+		);
+		
+		if ($default_board_query->fetchColumn() == 0) {
+			// Set up the default board
+		    $boards = listBoards();
+	    	if ($boards !== false) {
+	    		foreach ($boards as &$_board) {
+	    			setupBoard($_board);
+	    			buildIndex();
+	    		}
+		    }
 		}
 
 		file_write($config['has_installed'], VERSION);
@@ -604,54 +698,9 @@ if ($step == 0) {
 		'config' => $config
 	));
 
-	if (!empty($sql_errors)) {
-		$page['body'] .= '<div class="ban"><h2>SQL errors</h2><p>SQL errors were encountered when trying to install the database. This may be the result of using a database which is already occupied with a 4im installation; if so, you can probably ignore this.</p><p>The errors encountered were:</p><ul>' . $sql_errors . '</ul><p><a href="?step=5">Ignore errors and complete installation.</a></p></div>';
-	} else {
-		$boards = listBoards();
-		foreach ($boards as &$_board) {
-			setupBoard($_board);
-			buildIndex();
-		}
-
-		file_write($config['has_installed'], VERSION);
-		/*if (!file_unlink(__FILE__)) {
-			$page['body'] .= '<div class="ban"><h2>Delete install.php!</h2><p>I couldn\'t remove <strong>install.php</strong>. You will have to remove it manually.</p></div>';
-		}*/
-	}
-
-	echo Element('page.html', $page);
-} elseif ($step == 5) {
-	$page['title'] = 'Installation complete';
-
-	$boards = listBoards();
-	foreach ($boards as &$_board) {
-		setupBoard($_board);
-		buildIndex();
-	}
-	
-	$body = Element('installer/database.html', array(
-		'success' => true,
-		'config' => $config
-	));
-
-	echo Element('installer/header.html', array(
-		'title' => $page['title'],
-		'config' => $config,
-		'step' => $step
-	)) . $body . Element('installer/footer.html', array(
-		'config' => $config
-	));
-
-	$boards = listBoards();
-	foreach ($boards as &$_board) {
-		setupBoard($_board);
-		buildIndex();
-	}
-
-	file_write($config['has_installed'], VERSION);
+	// Try to remove install.php
 	if (!file_unlink(__FILE__)) {
 		$page['body'] .= '<div class="ban"><h2>Delete install.php!</h2><p>I couldn\'t remove <strong>install.php</strong>. You will have to remove it manually.</p></div>';
+		echo Element('page.html', $page);
 	}
-
-	echo Element('page.html', $page);
 }

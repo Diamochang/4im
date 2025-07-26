@@ -1,0 +1,19 @@
+<div class="installer-error">
+    <h2 class="installer-error-title">{{ title }}</h2>
+    <p class="installer-error-message">{{ message }}</p>
+    {% if description %}
+        <p class="installer-error-description">{{ description }}</p>
+    {% endif %}
+    
+    {% if link %}
+        <p class="installer-error-link">
+            <a href="{{ link }}">{{ link_text|default('Go back') }}</a>
+        </p>
+    {% endif %}
+    
+    {% if debug %}
+        <hr>
+        <h3>{% trans 'Error information' %}</h3>
+        <pre class="installer-error-debug">{{ debug }}</pre>
+    {% endif %}
+</div>

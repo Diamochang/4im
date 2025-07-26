@@ -73,9 +73,9 @@
         
         <div class="installer-continue">
             {% if errors %}
-                <a href="?step=2">{% trans %}Ignore errors and attempt installing anyway (not recommended){% endtrans %}</a>
+                <a href="?step=3">{% trans %}Ignore errors and attempt installing anyway (not recommended){% endtrans %}</a>
             {% else %}
-                <a href="?step=2">{% trans %}Proceed with installation{% endtrans %}</a>
+                <a href="?step=3">{% trans %}Proceed with installation{% endtrans %}</a>
             {% endif %}
         </div>
     {% else %}
@@ -84,7 +84,7 @@
         </div>
         
         <div class="installer-continue">
-            <a href="?step=2">{% trans %}Proceed with installation{% endtrans %}</a>
+            <a href="?step=3">{% trans %}Proceed with installation{% endtrans %}</a>
         </div>
     {% endif %}
 </div>

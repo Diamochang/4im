@@ -22,11 +22,11 @@
         {% if step is defined %}
         <nav class="installer-nav">
             <ul>
-                <li class="{% if step == 0 %}active{% endif %}">{% trans %}License{% endtrans %}</li>
-                <li class="{% if step == 1 %}active{% endif %}">{% trans %}Requirements{% endtrans %}</li>
-                <li class="{% if step == 2 %}active{% endif %}">{% trans %}Configuration{% endtrans %}</li>
-                <li class="{% if step == 3 %}active{% endif %}">{% trans %}Database{% endtrans %}</li>
-                <li class="{% if step >= 4 %}active{% endif %}">{% trans %}Finish{% endtrans %}</li>
+                <li class="{% if step == 0 %}active{% endif %}">{% trans %}Welcome{% endtrans %}</li>
+                <li class="{% if step == 1 %}active{% endif %}">{% trans %}License{% endtrans %}</li>
+                <li class="{% if step == 2 %}active{% endif %}">{% trans %}Requirements{% endtrans %}</li>
+                <li class="{% if step == 3 %}active{% endif %}">{% trans %}Configuration{% endtrans %}</li>
+                <li class="{% if step >= 4 %}active{% endif %}">{% trans %}Install & Finish{% endtrans %}</li>
             </ul>
         </nav>
         {% endif %}

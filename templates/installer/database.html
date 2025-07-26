@@ -1,38 +1,65 @@
 <div class="installer-database">
-    <h2>{% trans %}Database Installation{% endtrans %}</h2>
+    <h2>{% trans %}Installation{% endtrans %}</h2>
     
     {% if error is defined %}
         <div class="installer-errors">
             <h3>{% trans %}Error{% endtrans %}</h3>
             <p>{{ error }}</p>
             <p class="text-center">
-                <a href="?step=4">{% trans %}Try again{% endtrans %}</a>
+                <a href="?step=5">{% trans %}Try again{% endtrans %}</a>
             </p>
         </div>
     {% elseif success is defined %}
-        <div class="installer-success">
-            <h3>{% trans %}Installation Complete{% endtrans %}</h3>
-            <p>{% trans %}Thank you for using 4im. Please remember to report any bugs you discover.{% endtrans %}</p>
+        <div class="installer-complete">
+            <h2>{% trans %}Installation Complete{% endtrans %}</h2>
             
-            {% if sql_errors is defined and sql_errors %}
-                <div class="installer-warnings">
-                    <h4>{% trans %}SQL errors{% endtrans %}</h4>
-                    <p>{% trans %}SQL errors were encountered when trying to install the database. This may be the result of using a database which is already occupied with a 4im installation; if so, you can probably ignore this.{% endtrans %}</p>
-                    <p>{% trans %}The errors encountered were:{% endtrans %}</p>
-                    <ul>
-                        {% for error in sql_errors %}
-                            <li>{{ error|raw }}</li>
-                        {% endfor %}
-                    </ul>
-                    <p class="text-center">
-                        <a href="?step=5">{% trans %}Ignore errors and complete installation.{% endtrans %}</a>
-                    </p>
+            <div class="installer-complete-content">
+                <p>{% trans %}Congratulations! 4im has been successfully installed on your server.{% endtrans %}</p>
+                
+                <p>{% trans %}You can now access the moderation panel to configure your imageboard, set up boards, and customize the appearance and functionality to your liking.{% endtrans %}</p>
+                
+                <p>{% trans %}For security reasons, the install.php file has been removed. If not, it is recommended that you delete it from your server now. You can also change file permissions to prevent it from being accessed again.{% endtrans %}</p>
+                
+                <p>{% trans %}Thank you for choosing 4im. Please remember to report any bugs you discover on our issue tracker.{% endtrans %}</p>
+            </div>
+            
+            <div class="installer-continue">
+                <a href="{{ config.root }}mod.php">{% trans %}Continue to your new installation{% endtrans %}</a>
+            </div>
+        </div>
+    {% elseif sql_errors is defined and sql_errors %}
+        <div class="installer-success">
+            <h3>{% trans %}Database Installation Complete{% endtrans %}</h3>
+            <p>{% trans %}The database has been successfully installed.{% endtrans %}</p>
+            
+            <div class="installer-warnings">
+                <h4>{% trans %}SQL errors{% endtrans %}</h4>
+                <p>{% trans %}SQL errors were encountered when trying to install the database. This may be the result of using a database which is already occupied with a 4im installation; if so, you can probably ignore this.{% endtrans %}</p>
+                <p>{% trans %}The errors encountered were:{% endtrans %}</p>
+                <ul>
+                    {% for error in sql_errors %}
+                        <li>{{ error|raw }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <div class="installer-complete">
+                <h2>{% trans %}Installation Complete{% endtrans %}</h2>
+                
+                <div class="installer-complete-content">
+                    <p>{% trans %}Congratulations! 4im has been successfully installed on your server.{% endtrans %}</p>
+                    
+                    <p>{% trans %}You can now access the moderation panel to configure your imageboard, set up boards, and customize the appearance and functionality to your liking.{% endtrans %}</p>
+                    
+                    <p>{% trans %}For security reasons, the install.php file has been removed. If not, it is recommended that you delete it from your server now. You can also change file permissions to prevent it from being accessed again.{% endtrans %}</p>
+                    
+                    <p>{% trans %}Thank you for choosing 4im. Please remember to report any bugs you discover on our issue tracker.{% endtrans %}</p>
                 </div>
-            {% else %}
-                <p class="text-center">
+                
+                <div class="installer-continue">
                     <a href="{{ config.root }}mod.php">{% trans %}Continue to your new installation{% endtrans %}</a>
-                </p>
-            {% endif %}
+                </div>
+            </div>
         </div>
     {% else %}
         <div class="installer-progress">

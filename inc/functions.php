@@ -422,16 +422,16 @@ function setupBoard($array) {
 	loadConfig();
 
 	if (!file_exists($board['dir']))
-		@mkdir($board['dir'], 0777) or error("Couldn't create " . $board['dir'] . ". Check permissions.", true);
+		@mkdir($board['dir'], 0777, true) or error("Couldn't create " . $board['dir'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['img']))
-		@mkdir($board['dir'] . $config['dir']['img'], 0777)
+		@mkdir($board['dir'] . $config['dir']['img'], 0777, true)
 			or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['thumb']))
-		@mkdir($board['dir'] . $config['dir']['thumb'], 0777)
-			or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
+		@mkdir($board['dir'] . $config['dir']['thumb'], 0777, true)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['thumb'] . ". Check permissions.", true);
 	if (!file_exists($board['dir'] . $config['dir']['res']))
-		@mkdir($board['dir'] . $config['dir']['res'], 0777)
-			or error("Couldn't create " . $board['dir'] . $config['dir']['img'] . ". Check permissions.", true);
+		@mkdir($board['dir'] . $config['dir']['res'], 0777, true)
+			or error("Couldn't create " . $board['dir'] . $config['dir']['res'] . ". Check permissions.", true);
 }
 
 function openBoard($uri) {
@@ -676,11 +676,21 @@ function listBoards($just_uri = false) {
 		return $boards;
 
 	if (!$just_uri) {
-		$query = query("SELECT * FROM ``boards`` ORDER BY `uri`") or error(db_error());
+		$query = query("SELECT * FROM ``boards`` ORDER BY `uri`");
+		// During installation, the boards table may not exist yet
+		if ($query === false) {
+			// We're in installation and boards table doesn't exist yet
+			return false;
+		}
 		$boards = $query->fetchAll();
 	} else {
 		$boards = array();
-		$query = query("SELECT `uri` FROM ``boards``") or error(db_error());
+		$query = query("SELECT `uri` FROM ``boards``");
+		// During installation, the boards table may not exist yet
+		if ($query === false) {
+			// We're in installation and boards table doesn't exist yet
+			return false;
+		}
 		while ($board = $query->fetchColumn()) {
 			$boards[] = $board;
 		}
